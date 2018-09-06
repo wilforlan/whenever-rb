@@ -1,0 +1,42 @@
+#!/usr/bin/ruby
+require 'rubygems'
+gem 'aws-sdk'
+
+require 'aws-sdk'
+require 'yaml'
+
+ENVIRONMENT_NAME_FILE = "/var/app/support/env_name"
+AWS_CREDENTIALS = YAML.load_file("config/whenever-elasticbeanstalk.yml")[ENV["RAILS_ENV"]]
+
+instance_id = if File.exists?("/var/app/support/instance_id")
+	File.read("/var/app/support/instance_id")
+else
+	if id = `/opt/aws/bin/ec2-metadata -i | awk '{print $2}'`.strip
+		File.open("/var/app/support/instance_id", 'w') {|f| f.write(id) }
+		id
+	end
+end
+
+AWS.config(AWS_CREDENTIALS)
+ec2 = AWS::EC2.new
+
+environment_name = if File.exists?(ENVIRONMENT_NAME_FILE)
+  File.read(ENVIRONMENT_NAME_FILE)
+else
+	env_name = ec2.instances[instance_id].tags["elasticbeanstalk:environment-name"]
+	File.open(ENVIRONMENT_NAME_FILE, 'w') {|f| f.write(env_name) }
+	env_name
+end
+
+leader_instances = ec2.instances.inject([]) do |m, i|
+	m << i.id if i.tags["elasticbeanstalk:environment-name"] == environment_name &&
+		i.status == :running &&
+		i.tags["leader"] == "true"
+	m
+end
+
+if leader_instances.count > 1 && leader_instances.include?(instance_id)
+	ec2.instances[instance_id].tags["leader"] = "false"
+end
+
+`bundle exec setup_cron`

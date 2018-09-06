@@ -1,0 +1,27 @@
+#!/usr/bin/ruby
+require 'rubygems'
+gem 'aws-sdk'
+
+require 'aws-sdk'
+require 'yaml'
+
+environment = ENV["RAILS_ENV"]
+AWS_CREDENTIALS = YAML.load_file("config/whenever-elasticbeanstalk.yml")[environment]
+
+instance_id = if File.exists?("/var/app/support/instance_id")
+  File.read("/var/app/support/instance_id")
+else
+  if id = `/opt/aws/bin/ec2-metadata -i | awk '{print $2}'`.strip
+    File.open("/var/app/support/instance_id", 'w') {|f| f.write(id) }
+    id
+  end
+end
+
+AWS.config(AWS_CREDENTIALS)
+ec2 = AWS::EC2.new
+
+if ec2.instances[instance_id].tags["leader"] == "true"
+	`bundle exec whenever --roles leader --set 'environment=#{environment}&path=/var/app/current' --update-crontab`
+else
+	`bundle exec whenever --roles non-leader --set 'environment=#{environment}&path=/var/app/current' --update-crontab`
+end
