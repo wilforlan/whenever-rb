@@ -18,7 +18,7 @@ Gem::Specification.new do |gem|
   gem.add_dependency('aws-sdk')
 
   gem.files         = `git ls-files`.split($/)
-  gem.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
+  gem.executables   = ["create_cron_leader", "ensure_one_cron_leader", "remove_cron_leader", "setup_cron", "wheneverize-eb"]
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.require_paths = ["lib"]
 end
